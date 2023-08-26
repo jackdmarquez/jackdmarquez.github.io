@@ -8,7 +8,7 @@ redirect_from:
   - /about.html
 ---
 
-Jack Marquez is a Post-doctoral Research Associate at the University of Tennessee, Knoxville, as a member of the Global Computing Laboratory directed by Dr. Michela Taufer. He earned his Ph.D. in Engineering in 2022 from the University Autonoma de Occidente (Cali, Colombia) after graduating with his BSc in Informatics Engineering from the same university in 2013. From 2013 he worked as a researcher and in 2016 as an adjunct professor for the same university. He also worked as a software developer for national and international companies.
+Jack Marquez is a Research Assistant Professor at the University of Tennessee, Knoxville, as a member of the Global Computing Laboratory directed by Dr. Michela Taufer. He earned his Ph.D. in Engineering in 2022 from the University Autonoma de Occidente (Cali, Colombia) after graduating with his BSc in Informatics Engineering from the same university in 2013. From 2013 he worked as a researcher and in 2016 as an adjunct professor for the same university. He also worked as a software developer for national and international companies.
 
 His research interests include HPC, Cloud Computing, heterogeneous storage systems, and performance optimization.
 
