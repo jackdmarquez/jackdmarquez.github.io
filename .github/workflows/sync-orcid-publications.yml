@@ -1,0 +1,48 @@
+name: Sync ORCID Publications
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-orcid-publications:
+    runs-on: ubuntu-latest
+    env:
+      ORCID_ID: 0000-0002-2673-3507
+      CROSSREF_MAILTO: ${{ secrets.CROSSREF_MAILTO }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run ORCID sync
+        id: sync
+        run: |
+          python scripts/sync_orcid_publications.py \
+            --orcid-id "$ORCID_ID" \
+            --publications-dir "_publications" \
+            --pr-body-path "$RUNNER_TEMP/orcid-sync-pr-body.md" \
+            --verbose
+
+          if [ -n "$(git status --porcelain -- _publications)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create pull request
+        if: steps.sync.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: bot/orcid-publications-sync
+          commit-message: Add new publications from ORCID
+          title: Add new publications from ORCID
+          body-path: ${{ runner.temp }}/orcid-sync-pr-body.md
+          delete-branch: false
