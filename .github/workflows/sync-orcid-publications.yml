@@ -13,9 +13,19 @@ jobs:
     env:
       ORCID_ID: 0000-0002-2673-3507
       CROSSREF_MAILTO: ${{ secrets.CROSSREF_MAILTO }}
+      CV_REPO_TOKEN: ${{ secrets.CV_REPO_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Checkout CV repository
+        if: env.CV_REPO_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          repository: jackdmarquez/CV
+          token: ${{ secrets.CV_REPO_TOKEN }}
+          path: cv-repo
+        continue-on-error: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,12 +39,20 @@ jobs:
             --orcid-id "$ORCID_ID" \
             --publications-dir "_publications" \
             --pr-body-path "$RUNNER_TEMP/orcid-sync-pr-body.md" \
+            --cv-bib-path "cv-repo/publications.bib" \
+            --cv-pr-body-path "$RUNNER_TEMP/orcid-sync-cv-pr-body.md" \
             --verbose
 
           if [ -n "$(git status --porcelain -- _publications)" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ -d "cv-repo/.git" ] && [ -n "$(git -C cv-repo status --porcelain -- publications.bib)" ]; then
+            echo "cv_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cv_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create pull request
@@ -46,3 +64,16 @@ jobs:
           title: Add new publications from ORCID
           body-path: ${{ runner.temp }}/orcid-sync-pr-body.md
           delete-branch: false
+
+      - name: Create CV repo pull request
+        if: steps.sync.outputs.cv_changed == 'true' && env.CV_REPO_TOKEN != ''
+        uses: peter-evans/create-pull-request@v6
+        with:
+          path: cv-repo
+          token: ${{ secrets.CV_REPO_TOKEN }}
+          branch: bot/orcid-publications-sync-bib
+          commit-message: Add new publications to publications.bib from ORCID sync
+          title: Add new publications to publications.bib from ORCID sync
+          body-path: ${{ runner.temp }}/orcid-sync-cv-pr-body.md
+          delete-branch: false
+        continue-on-error: true

@@ -149,6 +149,80 @@ Body
             second = mod.choose_unique_output_path(pub_dir, rec)
             self.assertTrue(second.name.endswith("-2.md"))
 
+    def test_bold_author_name_in_bibtex(self):
+        raw = (
+            "@article{key,\n"
+            "  author = {Alice Doe and J. Marquez and Marquez, J. and Bob Roe},\n"
+            "  title = {X}\n"
+            "}\n"
+        )
+        patched = mod.bold_author_name_in_bibtex(raw)
+        self.assertIn(r"\textbf{J. Marquez}", patched)
+        self.assertIn(r"\textbf{Marquez, J.}", patched)
+        self.assertIn("Alice Doe", patched)
+
+    def test_parse_bibtex_index_and_duplicate_detection(self):
+        text = (
+            "@article{foo2025bar,\n"
+            "  title = {Interesting Result},\n"
+            "  year = {2025},\n"
+            "  DOI = {10.9999/ABC}\n"
+            "}\n"
+        )
+        idx = mod.parse_bibtex_index(text)
+        self.assertIn("foo2025bar", idx.keys)
+        self.assertIn("10.9999/abc", idx.dois)
+        rec = mod.PublicationRecord(
+            orcid_put_code="3",
+            orcid_path=None,
+            title="Interesting Result",
+            doi="10.9999/abc",
+            year=2025,
+            month=None,
+            day=None,
+            venue=None,
+            authors=[],
+            url=None,
+            abstract=None,
+            citation=None,
+            source_quality="crossref",
+        )
+        self.assertTrue(mod.is_bib_duplicate(rec, idx))
+
+    def test_append_bibtex_entries_appends_and_skips_duplicates(self):
+        rec = mod.PublicationRecord(
+            orcid_put_code="4",
+            orcid_path=None,
+            title="Fresh Paper",
+            doi="10.1234/fresh",
+            year=2026,
+            month=1,
+            day=2,
+            venue="Journal Y",
+            authors=["Jane Doe", "J. Marquez"],
+            url="https://doi.org/10.1234/fresh",
+            abstract=None,
+            citation=None,
+            source_quality="crossref",
+        )
+        with tempfile.TemporaryDirectory() as td:
+            bib = Path(td) / "publications.bib"
+            bib.write_text(
+                "@article{existing,\n  title = {Existing},\n  year = {2024},\n  doi = {10.1111/existing}\n}\n",
+                encoding="utf-8",
+            )
+            with patch.object(mod, "fetch_doi_bibtex", return_value='@article{crossrefkey,\n author = {J. Marquez and Jane Doe},\n title = {Fresh Paper},\n year = {2026},\n doi = {10.1234/fresh}\n}\n'):
+                added, skipped, warnings, titles = mod.append_bibtex_entries(bib, [rec], dry_run=False)
+            self.assertEqual((added, skipped), (1, 0))
+            self.assertEqual(titles, ["Fresh Paper"])
+            out = bib.read_text(encoding="utf-8")
+            self.assertIn(r"\textbf{J. Marquez}", out)
+            # second run should skip duplicate DOI
+            with patch.object(mod, "fetch_doi_bibtex", return_value=None):
+                added2, skipped2, warnings2, _ = mod.append_bibtex_entries(bib, [rec], dry_run=False)
+            self.assertEqual((added2, skipped2), (0, 1))
+            self.assertTrue(any("duplicate" in w.lower() for w in warnings2))
+
     def test_format_publication_markdown_contains_required_fields(self):
         rec = mod.PublicationRecord(
             orcid_put_code="77",
@@ -222,20 +296,25 @@ doi: "10.2000/existing"
 """,
                 encoding="utf-8",
             )
+            cv_bib = pub_dir / "publications.bib"
+            cv_bib.write_text("", encoding="utf-8")
             with patch.object(mod, "fetch_orcid_works", return_value=orcid_payload), patch.object(
                 mod, "fetch_crossref_by_doi", return_value=crossref_payload
-            ):
+            ), patch.object(mod, "fetch_doi_bibtex", return_value="@article{newpaper,\n  author={Jane Doe and J. Marquez},\n  title={New Paper (Crossref)},\n  year={2025},\n  doi={10.2000/new}\n}\n"):
                 res = mod.sync_publications(
                     orcid_id="0000-0000-0000-0000",
                     publications_dir=pub_dir,
                     dry_run=True,
                     verbose=False,
+                    cv_bib_path=cv_bib,
+                    cv_dry_run=True,
                 )
             self.assertEqual(res.skipped_existing, 1)
             self.assertEqual(len(res.created_files), 1)
             self.assertFalse(res.created_files[0].exists())  # dry-run
             self.assertEqual(res.created_records[0].title, "New Paper (Crossref)")
             self.assertEqual(res.created_records[0].source_quality, "crossref")
+            self.assertEqual(res.cv_bib_entries_added, 1)
 
 
 if __name__ == "__main__":
