@@ -60,6 +60,7 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           branch: bot/orcid-publications-sync
+          add-paths: _publications/
           commit-message: Add new publications from ORCID
           title: Add new publications from ORCID
           body-path: ${{ runner.temp }}/orcid-sync-pr-body.md
