@@ -1,0 +1,5 @@
+# Checked out by the ORCID sync workflow; never commit
+cv-repo/
+.bundle/
+_site/
+.DS_Store
